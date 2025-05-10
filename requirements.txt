@@ -1,0 +1,8 @@
+Flask==2.3.3
+PyPDF2==3.0.1
+docx2txt
+spacy>=3.0.0
+Werkzeug==2.3.7
+
+# After installing requirements, download the spaCy model with:
+# python -m spacy download en_core_web_lg
