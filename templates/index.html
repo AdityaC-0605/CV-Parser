@@ -221,32 +221,29 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    // Display skills
+                    // Display categorized skills
                     const skillsContainer = document.getElementById('skillsContainer');
-                    skillsContainer.innerHTML = data.skills
-                        .map(skill => `<span class="skill-tag">${skill}</span>`)
-                        .join('');
-
-                    // Display experience
-                    const experienceContainer = document.getElementById('experienceContainer');
-                    experienceContainer.innerHTML = data.experience
-                        .map(exp => `
-                            <div class="experience-card">
-                                <h5>${exp.job_title || 'Unknown Position'}</h5>
-                                <p class="mb-1"><strong>${exp.company || 'Unknown Company'}</strong></p>
-                                <p class="text-muted mb-2">${exp.dates || 'Date not specified'}</p>
-                                <p>${exp.description || 'No description available'}</p>
+                    skillsContainer.innerHTML = '';
+                    
+                    for (const [category, skills] of Object.entries(data.skills)) {
+                        const categoryDiv = document.createElement('div');
+                        categoryDiv.className = 'mb-3';
+                        categoryDiv.innerHTML = `
+                            <h5 class="text-muted mb-2">${category}</h5>
+                            <div>
+                                ${skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('')}
                             </div>
-                        `)
-                        .join('');
+                        `;
+                        skillsContainer.appendChild(categoryDiv);
+                    }
 
                     document.querySelector('.result-container').style.display = 'block';
                 } else {
                     alert(data.error || 'Error parsing resume');
                 }
             } catch (error) {
-                alert('Error uploading file');
-                console.error(error);
+                console.error('Error:', error);
+                alert('Error uploading file. Please try again.');
             } finally {
                 document.querySelector('.loading').style.display = 'none';
             }

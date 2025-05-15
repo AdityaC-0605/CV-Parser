@@ -12,18 +12,60 @@ class ResumeParser:
         
         # Define common section headers in resumes
         self.section_headers = {
-            'experience': ['experience', 'work experience', 'employment history', 'work history', 'professional experience'],
             'skills': ['skills', 'technical skills', 'core skills', 'competencies', 'expertise', 'technologies', 'tech stack'],
             'education': ['education', 'academic background', 'qualifications', 'academic qualifications'],
             'contact': ['contact', 'personal details', 'contact information', 'personal information']
         }
         
-        # Common technical skills to look for
-        self.tech_skills = ['python', 'java', 'javascript', 'react', 'nodejs', 'sql', 'mongodb', 'aws', 'docker', 
-                           'kubernetes', 'machine learning', 'ai', 'data science', 'css', 'html', 'php', 'c++',
-                           'c#', 'golang', 'rust', 'swift', 'angular', 'vue', 'django', 'flask', 'ruby', 'rails',
-                           'scala', 'hadoop', 'spark', 'tensorflow', 'pytorch', 'nlp', 'computer vision', 'devops',
-                           'git', 'ci/cd', 'terraform', 'cloud', 'azure', 'gcp', 'linux', 'agile', 'scrum', 'jira']
+        # Comprehensive technical skills categorized
+        self.technical_skills = {
+            "Programming Languages": [
+                "python", "javascript", "java", "c++", "c#", "go", "rust", "typescript",
+                "ruby", "php", "swift", "kotlin", "scala", "r", "matlab"
+            ],
+            "Database Technologies": [
+                "sql", "mysql", "postgresql", "mongodb", "oracle", "microsoft sql server",
+                "sqlite", "redis", "cassandra", "dynamodb", "elasticsearch"
+            ],
+            "Cloud Platforms": [
+                "aws", "azure", "google cloud platform", "gcp", "ibm cloud",
+                "oracle cloud", "heroku", "digitalocean"
+            ],
+            "Web Frameworks & Libraries": [
+                "react", "angular", "vue.js", "django", "flask", "spring boot",
+                "express.js", "ruby on rails", "asp.net", "laravel"
+            ],
+            "DevOps & Deployment": [
+                "docker", "kubernetes", "jenkins", "gitlab ci/cd", "github actions",
+                "terraform", "ansible", "puppet", "chef", "circleci"
+            ],
+            "Data Science & AI": [
+                "tensorflow", "pytorch", "scikit-learn", "pandas", "numpy",
+                "keras", "nltk", "spacy", "apache spark", "hadoop"
+            ],
+            "Frontend Technologies": [
+                "html5", "css3", "sass", "scss", "bootstrap", "tailwind",
+                "jquery", "redux", "webpack", "graphql", "material ui"
+            ],
+            "Mobile Development": [
+                "react native", "flutter", "xamarin", "ionic", "android sdk",
+                "ios sdk", "cordova"
+            ],
+            "Version Control": [
+                "git", "svn", "mercurial"
+            ],
+            "Testing Tools": [
+                "jest", "selenium", "junit", "mocha", "cypress", "testng", "pytest"
+            ],
+            "Project Management & Methodologies": [
+                "agile", "scrum", "kanban", "jira", "confluence", "trello"
+            ]
+        }
+        
+        # Flatten the technical skills for easier searching
+        self.all_skills = set()
+        for category in self.technical_skills.values():
+            self.all_skills.update([skill.lower() for skill in category])
     
     def extract_text_from_pdf(self, pdf_path):
         """Extract text from PDF file"""
@@ -102,73 +144,31 @@ class ResumeParser:
             # Use NLP to extract skills
             doc = self.nlp(skills_text)
             
-            # Extract noun phrases as potential skills
+            # Extract noun phrases and check against our comprehensive skills list
             for chunk in doc.noun_chunks:
-                skills.add(chunk.text.lower())
+                skill_text = chunk.text.lower()
+                if skill_text in self.all_skills:
+                    skills.add(skill_text)
             
-            # Look for common tech skills
-            for skill in self.tech_skills:
+            # Look for exact matches of technical skills
+            for skill in self.all_skills:
                 if re.search(r'\b' + re.escape(skill) + r'\b', skills_text.lower()):
                     skills.add(skill)
         
         # Also look for skills in the entire document
         doc = self.nlp(text)
         for token in doc:
-            if token.text.lower() in self.tech_skills:
+            if token.text.lower() in self.all_skills:
                 skills.add(token.text.lower())
         
-        return list(skills)
-    
-    def extract_experience(self, text):
-        """Extract work experience from resume"""
-        experiences = []
+        # Categorize found skills
+        categorized_skills = {}
+        for category, category_skills in self.technical_skills.items():
+            category_matches = [skill for skill in skills if skill.lower() in [s.lower() for s in category_skills]]
+            if category_matches:
+                categorized_skills[category] = sorted(category_matches)
         
-        sections = self.extract_sections(text)
-        if 'experience' in sections:
-            exp_text = sections['experience']
-            
-            # Find experience entries using patterns
-            # Look for company names, job titles, and dates
-            exp_blocks = re.split(r'\n{2,}', exp_text)
-            
-            for block in exp_blocks:
-                # Try to extract job title, company, and dates
-                job_title = None
-                company = None
-                dates = None
-                description = []
-                
-                lines = block.split('\n')
-                for i, line in enumerate(lines):
-                    # Try to extract dates (MM/YYYY - MM/YYYY or similar formats)
-                    date_match = re.search(r'(\d{1,2}/\d{2,4}|\d{4})\s*[-–—to]*\s*(\d{1,2}/\d{2,4}|\d{4}|present|current)', 
-                                          line.lower())
-                    if date_match and not dates:
-                        dates = line.strip()
-                        continue
-                    
-                    # First non-date line is likely job title
-                    if i == 0 and not date_match and not job_title:
-                        job_title = line.strip()
-                        continue
-                    
-                    # Second non-date line might be company
-                    if i == 1 and not date_match and not company:
-                        company = line.strip()
-                        continue
-                    
-                    # Rest is description
-                    description.append(line.strip())
-                
-                if job_title or company or dates:
-                    experiences.append({
-                        'job_title': job_title,
-                        'company': company,
-                        'dates': dates,
-                        'description': ' '.join(description) if description else None
-                    })
-        
-        return experiences
+        return categorized_skills
     
     def parse_resume(self, file_path):
         """Main function to parse a resume"""
@@ -180,11 +180,9 @@ class ResumeParser:
             }
         
         skills = self.extract_skills(text)
-        experience = self.extract_experience(text)
         
         return {
-            'skills': skills,
-            'experience': experience
+            'skills': skills
         }
 
 
@@ -192,6 +190,7 @@ class ResumeParser:
 if __name__ == "__main__":
     parser = ResumeParser()
     
-    # Example: Parse resume file
-    result = parser.parse_resume("path_to_resume.pdf")
+    # Replace with your actual resume file path
+    resume_path = "your_resume.pdf"  # or "your_resume.docx"
+    result = parser.parse_resume(resume_path)
     print(json.dumps(result, indent=2))
