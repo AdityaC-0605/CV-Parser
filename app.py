@@ -27,6 +27,7 @@ def parse_resume():
             return jsonify({'error': 'No file uploaded'}), 400
         
         file = request.files['resume']
+        job_role = request.form.get('job_role')  # Get the job role from form data
         
         # If user doesn't select file
         if file.filename == '':
@@ -49,9 +50,9 @@ def parse_resume():
             return jsonify({'error': f'Error saving file: {str(e)}'}), 500
         
         try:
-            # Parse the resume
+            # Parse the resume with job role
             parser = ResumeParser()
-            result = parser.parse_resume(filepath)
+            result = parser.parse_resume(filepath, job_role)  # Pass job_role to parse_resume
             
             # Clean up the uploaded file
             if os.path.exists(filepath):
@@ -71,6 +72,11 @@ def parse_resume():
         
     except Exception as e:
         return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+@app.route('/get-job-roles', methods=['GET'])
+def get_job_roles():
+    parser = ResumeParser()
+    return jsonify(list(parser.job_roles_skills.keys()))
 
 if __name__ == '__main__':
     app.run(debug=True)

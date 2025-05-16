@@ -6,6 +6,7 @@
     <title>CV Parser</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
     <style>
         body {
             font-family: 'Poppins', sans-serif;
@@ -175,40 +176,177 @@
                     <input type="file" class="form-control" id="resume" name="resume" accept=".pdf,.docx" required>
                     <div class="form-text">Supported formats: PDF, DOCX</div>
                 </div>
-                <button type="submit" class="btn btn-primary w-100">Parse Resume</button>
-            </form>
-            
-            <div class="loading">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
+                <div class="mb-3" id="jobRoleDiv" style="display: none;">
+                    <label for="jobRole" class="form-label">Enter Target Job Role</label>
+                    <div class="job-role-wrapper">
+                        <input type="text" 
+                               class="form-control" 
+                               id="jobRole" 
+                               name="jobRole" 
+                               required 
+                               autocomplete="off"
+                               placeholder="Type to search job roles..."
+                               list="jobRolesList">
+                        <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16">
+                            <path fill="currentColor" d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                        </svg>
+                        <div id="jobRoleSuggestions" class="suggestion-box"></div>
+                    </div>
+                    <div class="form-text">Start typing to see available job roles</div>
                 </div>
-                <p class="mt-2">Parsing your resume...</p>
+                <datalist id="jobRolesList"></datalist>
+                <div class="form-text">Select from available roles or type to search</div>
             </div>
+            <button type="submit" class="btn btn-primary w-100" id="submitBtn">Upload Resume</button>
+        </form>
+        
+        <div class="loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Analyzing your resume...</p>
+        </div>
 
-            <div class="result-container">
-                <h3>Parsed Results</h3>
-                <div class="mb-4">
-                    <h4>Skills</h4>
-                    <div id="skillsContainer"></div>
-                </div>
-                <div>
-                    <h4>Experience</h4>
-                    <div id="experienceContainer"></div>
-                </div>
+        <div class="result-container">
+            <h3>Parsed Results</h3>
+            <div class="mb-4">
+                <h4>Your Skills</h4>
+                <div id="skillsContainer"></div>
+            </div>
+            <div class="mb-4">
+                <h4>Required Skills for Selected Role</h4>
+                <div id="requiredSkillsContainer"></div>
+            </div>
+            <div class="mb-4">
+                <h4>Missing Skills</h4>
+                <div id="missingSkillsContainer"></div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        let availableRoles = [];
+
+        // Populate job roles when the page loads
+        window.addEventListener('load', () => {
+            fetch('/get-job-roles')
+                .then(response => response.json())
+                .then(roles => {
+                    availableRoles = roles;
+                    const jobRolesList = document.getElementById('jobRolesList');
+                    roles.forEach(role => {
+                        const option = document.createElement('option');
+                        option.value = role;
+                        jobRolesList.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading job roles:', error);
+                });
+        });
+
+        // Enhanced job role input handling
+        const jobRoleInput = document.getElementById('jobRole');
+        const suggestionBox = document.getElementById('jobRoleSuggestions');
+
+        jobRoleInput.addEventListener('input', (e) => {
+            const value = e.target.value.toLowerCase();
+            const filteredRoles = availableRoles.filter(role => 
+                role.toLowerCase().includes(value)
+            );
+
+            if (value && filteredRoles.length > 0) {
+                suggestionBox.innerHTML = filteredRoles
+                    .map(role => `<div class="suggestion-item">${role}</div>`)
+                    .join('');
+                suggestionBox.style.display = 'block';
+            } else {
+                suggestionBox.style.display = 'none';
+            }
+        });
+
+        // Handle suggestion clicks
+        suggestionBox.addEventListener('click', (e) => {
+            if (e.target.classList.contains('suggestion-item')) {
+                jobRoleInput.value = e.target.textContent;
+                suggestionBox.style.display = 'none';
+            }
+        });
+
+        // Close suggestions when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!jobRoleInput.contains(e.target) && !suggestionBox.contains(e.target)) {
+                suggestionBox.style.display = 'none';
+            }
+        });
+
+        // Handle keyboard navigation
+        jobRoleInput.addEventListener('keydown', (e) => {
+            const items = suggestionBox.getElementsByClassName('suggestion-item');
+            const selectedItem = suggestionBox.querySelector('.selected');
+            
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                
+                if (!items.length) return;
+                
+                let nextItem;
+                if (!selectedItem) {
+                    nextItem = e.key === 'ArrowDown' ? items[0] : items[items.length - 1];
+                } else {
+                    const currentIndex = Array.from(items).indexOf(selectedItem);
+                    selectedItem.classList.remove('selected');
+                    
+                    if (e.key === 'ArrowDown') {
+                        nextItem = items[currentIndex + 1] || items[0];
+                    } else {
+                        nextItem = items[currentIndex - 1] || items[items.length - 1];
+                    }
+                }
+                
+                nextItem.classList.add('selected');
+                nextItem.scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter' && suggestionBox.style.display === 'block') {
+                e.preventDefault();
+                const selected = suggestionBox.querySelector('.selected');
+                if (selected) {
+                    jobRoleInput.value = selected.textContent;
+                    suggestionBox.style.display = 'none';
+                }
+            }
+        });
+
+        // Show job role selection after file is selected
+        document.getElementById('resume').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                document.getElementById('jobRoleDiv').style.display = 'block';
+                document.getElementById('submitBtn').textContent = 'Analyze Resume';
+            }
+        });
+
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const formData = new FormData();
             const fileInput = document.getElementById('resume');
-            formData.append('resume', fileInput.files[0]);
+            const jobRole = document.getElementById('jobRole').value.trim();
+            
+            // Enhanced validation
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert('Please select a file');
+                return;
+            }
+            
+            if (!jobRole) {
+                alert('Please enter a job role');
+                return;
+            }
 
-            // Show loading spinner
+            formData.append('resume', fileInput.files[0]);
+            formData.append('job_role', jobRole);
+
+            // Show loading spinner and hide results
             document.querySelector('.loading').style.display = 'block';
             document.querySelector('.result-container').style.display = 'none';
 
@@ -220,30 +358,69 @@
                 
                 const data = await response.json();
                 
-                if (response.ok) {
-                    // Display categorized skills
-                    const skillsContainer = document.getElementById('skillsContainer');
-                    skillsContainer.innerHTML = '';
-                    
-                    for (const [category, skills] of Object.entries(data.skills)) {
-                        const categoryDiv = document.createElement('div');
-                        categoryDiv.className = 'mb-3';
-                        categoryDiv.innerHTML = `
-                            <h5 class="text-muted mb-2">${category}</h5>
-                            <div>
-                                ${skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('')}
-                            </div>
-                        `;
-                        skillsContainer.appendChild(categoryDiv);
-                    }
-
-                    document.querySelector('.result-container').style.display = 'block';
-                } else {
-                    alert(data.error || 'Error parsing resume');
+                if (!response.ok) {
+                    throw new Error(data.error || 'Error parsing resume');
                 }
+                
+                if (!data || !data.skills) {
+                    throw new Error('Invalid response format');
+                }
+                
+                // Display your skills
+                const skillsContainer = document.getElementById('skillsContainer');
+                skillsContainer.innerHTML = '';
+                
+                if (Object.keys(data.skills).length === 0) {
+                    skillsContainer.innerHTML = '<p class="text-warning">No skills were detected in your resume.</p>';
+                } else {
+                    for (const [category, skills] of Object.entries(data.skills)) {
+                        if (skills && skills.length > 0) {
+                            const categoryDiv = document.createElement('div');
+                            categoryDiv.className = 'mb-3';
+                            categoryDiv.innerHTML = `
+                                <h5 class="text-muted mb-2">${category}</h5>
+                                <div>
+                                    ${skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('')}
+                                </div>
+                            `;
+                            skillsContainer.appendChild(categoryDiv);
+                        }
+                    }
+                }
+
+                // Display required skills
+                const requiredSkillsContainer = document.getElementById('requiredSkillsContainer');
+                requiredSkillsContainer.innerHTML = '';
+                if (data.required_skills && data.required_skills.length > 0) {
+                    data.required_skills.forEach(skill => {
+                        const skillSpan = document.createElement('span');
+                        skillSpan.className = 'skill-tag';
+                        skillSpan.textContent = skill;
+                        requiredSkillsContainer.appendChild(skillSpan);
+                    });
+                } else {
+                    requiredSkillsContainer.innerHTML = '<p class="text-warning">No required skills found for this role.</p>';
+                }
+
+                // Display missing skills
+                const missingSkillsContainer = document.getElementById('missingSkillsContainer');
+                missingSkillsContainer.innerHTML = '';
+                if (data.missing_skills && data.missing_skills.length > 0) {
+                    data.missing_skills.forEach(skill => {
+                        const skillSpan = document.createElement('span');
+                        skillSpan.className = 'skill-tag';
+                        skillSpan.style.background = 'linear-gradient(135deg, #ff9966 0%, #ff5e62 100%)';
+                        skillSpan.textContent = skill;
+                        missingSkillsContainer.appendChild(skillSpan);
+                    });
+                } else {
+                    missingSkillsContainer.innerHTML = '<p class="text-success">You have all the required skills for this role!</p>';
+                }
+
+                document.querySelector('.result-container').style.display = 'block';
             } catch (error) {
                 console.error('Error:', error);
-                alert('Error uploading file. Please try again.');
+                alert(error.message || 'Error uploading file. Please try again.');
             } finally {
                 document.querySelector('.loading').style.display = 'none';
             }
@@ -251,3 +428,4 @@
     </script>
 </body>
 </html>
+
