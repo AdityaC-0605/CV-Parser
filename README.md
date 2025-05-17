@@ -43,17 +43,12 @@ An AI-powered resume parsing tool that extracts key information from resumes for
    python -m spacy download en_core_web_lg
    ```
 
-5. Create the uploads directory:
-   ```bash
-   mkdir uploads
-   ```
-
-6. Run the application:
+5. Run the application:
    ```bash
    python app.py
    ```
 
-7. Open your browser and navigate to `http://localhost:5000`
+6. Open your browser and navigate to `http://localhost:5000`
 
 ## Project Structure
 
