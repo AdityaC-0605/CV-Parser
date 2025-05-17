@@ -12,9 +12,7 @@ class ResumeParser:
         
         # Define common section headers in resumes
         self.section_headers = {
-            'skills': ['skills', 'technical skills', 'core skills', 'competencies', 'expertise', 'technologies', 'tech stack'],
-            'education': ['education', 'academic background', 'qualifications', 'academic qualifications'],
-            'contact': ['contact', 'personal details', 'contact information', 'personal information']
+            'skills': ['skills', 'technical skills', 'core skills', 'competencies', 'expertise', 'technologies', 'tech stack']
         }
 
         self.job_roles_skills = {
@@ -346,9 +344,6 @@ class ResumeParser:
                 "Change Management", "IT Governance"
             ]
         }
-
-        
-        # Comprehensive technical skills categorized
         self.technical_skills = {
             "Programming Languages": [
                 "python", "javascript", "java", "c++", "c#", "go", "rust", "typescript",
@@ -399,161 +394,193 @@ class ResumeParser:
             self.all_skills.update([skill.lower() for skill in category])
     
     def extract_text_from_pdf(self, pdf_path):
-        """Extract text from PDF file"""
         text = ""
         try:
+            pdf_path = pdf_path.strip('"').strip("'")  # Handle both single and double quotes
             with open(pdf_path, 'rb') as file:
                 pdf_reader = PdfReader(file)
                 for page in pdf_reader.pages:
                     text += page.extract_text()
         except Exception as e:
-            print(f"Error extracting text from PDF: {e}")
+            print(f"Error reading PDF: {str(e)}")
         return text
-    
+
     def extract_text_from_docx(self, docx_path):
-        """Extract text from DOCX file"""
         try:
+            docx_path = docx_path.strip('"').strip("'")  # Handle both single and double quotes
             text = docx2txt.process(docx_path)
             return text
         except Exception as e:
-            print(f"Error extracting text from DOCX: {e}")
+            print(f"Error reading DOCX: {str(e)}")
             return ""
-    
+
     def extract_text(self, file_path):
-        """Extract text based on file extension"""
-        _, file_extension = os.path.splitext(file_path)
+        file_path = file_path.strip('"').strip("'")  # Handle both single and double quotes
         
-        if file_extension.lower() == '.pdf':
+        if not os.path.exists(file_path):
+            print(f"Error: File not found at path: {file_path}")
+            return ""
+            
+        if file_path.lower().endswith('.pdf'):
             return self.extract_text_from_pdf(file_path)
-        elif file_extension.lower() == '.docx':
+        elif file_path.lower().endswith('.docx'):
             return self.extract_text_from_docx(file_path)
         else:
-            print(f"Unsupported file format: {file_extension}")
+            print("Unsupported file format. Please provide a PDF or DOCX file.")
             return ""
-    
-    def extract_sections(self, text):
-        """Split resume text into sections"""
-        sections = {}
-        current_section = "unknown"
-        section_text = []
+
+    def extract_skills(self, doc):
+        """
+        Extract skills from the document text and categorize them according to technical_skills
+        Args:
+            doc: The processed document text
+        Returns:
+            dict: Categorized skills found in the resume
+        """
+        categorized_skills = {category: [] for category in self.technical_skills.keys()}
         
-        lines = text.split('\n')
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-                
-            # Check if line is a section header
-            section_found = False
-            for section, headers in self.section_headers.items():
-                if any(header.lower() in line.lower() for header in headers):
-                    # Save previous section before starting new one
-                    if section_text:
-                        sections[current_section] = '\n'.join(section_text)
-                    current_section = section
-                    section_text = []
-                    section_found = True
-                    break
-            
-            if not section_found:
-                section_text.append(line)
+        # Convert doc text to lowercase for better matching
+        text_lower = doc.text.lower()
         
-        # Add the last section
-        if section_text:
-            sections[current_section] = '\n'.join(section_text)
-            
-        return sections
-    
-    def extract_skills(self, text):
-        """Extract skills from resume text"""
-        skills = set()
+        # Extract skills from all categories
+        for category, skill_list in self.technical_skills.items():
+            for skill in skill_list:
+                # Check for exact word boundaries
+                pattern = r'\b' + re.escape(skill.lower()) + r'\b'
+                if re.search(pattern, text_lower):
+                    categorized_skills[category].append(skill)
         
-        # Extract skills from skills section if available
-        sections = self.extract_sections(text)
-        if 'skills' in sections:
-            skills_text = sections['skills']
-            # Use NLP to extract skills
-            doc = self.nlp(skills_text)
-            
-            # Extract noun phrases and check against our comprehensive skills list
-            for chunk in doc.noun_chunks:
-                skill_text = chunk.text.lower()
-                if skill_text in self.all_skills:
-                    skills.add(skill_text)
-            
-            # Look for exact matches of technical skills
-            for skill in self.all_skills:
-                if re.search(r'\b' + re.escape(skill) + r'\b', skills_text.lower()):
-                    skills.add(skill)
-        
-        # Also look for skills in the entire document
-        doc = self.nlp(text)
-        for token in doc:
-            if token.text.lower() in self.all_skills:
-                skills.add(token.text.lower())
-        
-        # Categorize found skills
-        categorized_skills = {}
-        for category, category_skills in self.technical_skills.items():
-            category_matches = [skill for skill in skills if skill.lower() in [s.lower() for s in category_skills]]
-            if category_matches:
-                categorized_skills[category] = sorted(category_matches)
+        # Remove empty categories
+        categorized_skills = {k: v for k, v in categorized_skills.items() if v}
         
         return categorized_skills
-    
-    def parse_resume(self, file_path, job_role=None):
-        """Main function to parse a resume"""
+
+    def analyze_skill_match(self, candidate_skills, required_skills):
+        """Analyze how well the candidate's skills match the required skills"""
+        # Flatten the categorized skills into a single list
+        all_candidate_skills = []
+        for skills in candidate_skills.values():
+            all_candidate_skills.extend(skills)
+        
+        candidate_skills_lower = {skill.lower() for skill in all_candidate_skills}
+        required_skills_lower = {skill.lower() for skill in required_skills}
+        
+        matched_skills = []
+        missing_skills = []
+        
+        for req_skill in required_skills:
+            if any(candidate.lower() in req_skill.lower() or req_skill.lower() in candidate.lower() 
+                  for candidate in all_candidate_skills):
+                matched_skills.append(req_skill)
+            else:
+                missing_skills.append(req_skill)
+        
+        match_percentage = (len(matched_skills) / len(required_skills)) * 100 if required_skills else 0
+        
+        return {
+            'match_percentage': match_percentage,
+            'matched_skills': matched_skills,
+            'missing_skills': missing_skills
+        }
+
+    def parse_resume(self, file_path, target_job=None):
+        """Parse the resume and extract relevant information"""
+        # Extract text from the resume
         text = self.extract_text(file_path)
         if not text:
-            return {
-                'error': 'Could not extract text from the file',
-                'file_path': file_path
-            }
-        
-        skills = self.extract_skills(text)
-        result = {'skills': skills}
-        
-        # If job role is specified, find missing skills
-        if job_role and job_role in self.job_roles_skills:
-            required_skills = self.job_roles_skills[job_role]
-            user_skills = [skill.lower() for category in skills.values() for skill in category]
-            
-            # Find missing skills by comparing with required skills
-            missing_skills = []
-            for required_skill in required_skills:
-                skill_found = False
-                required_skill_lower = required_skill.lower()
-                
-                # Check if any part of the required skill matches user skills
-                for user_skill in user_skills:
-                    # Split skills into parts to handle variations
-                    required_parts = set(re.split(r'[/\s&(),.]', required_skill_lower))
-                    user_parts = set(re.split(r'[/\s&(),.]', user_skill))
-                    
-                    # Remove empty strings
-                    required_parts = {part.strip() for part in required_parts if part.strip()}
-                    user_parts = {part.strip() for part in user_parts if part.strip()}
-                    
-                    # If there's any significant overlap, consider it a match
-                    if required_parts.intersection(user_parts):
-                        skill_found = True
-                        break
-                
-                if not skill_found:
-                    missing_skills.append(required_skill)
-            
-            result['required_skills'] = required_skills
-            result['missing_skills'] = missing_skills
-            result['job_role'] = job_role
-        
+            return None
+
+        # Process the text with spaCy
+        doc = self.nlp(text)
+
+        # Extract information
+        categorized_skills = self.extract_skills(doc)
+
+        # Prepare the result
+        result = {
+            "categorized_skills": categorized_skills,
+        }
+
+        # If target job is provided, analyze skill match
+        if target_job and target_job in self.job_roles_skills:
+            required_skills = self.job_roles_skills[target_job]
+            skill_match = self.analyze_skill_match(categorized_skills, required_skills)
+            result["skill_match"] = skill_match
+            result["target_job"] = target_job
+
         return result
 
-
-# Example usage
-if __name__ == "__main__":
+def main():
     parser = ResumeParser()
     
-    # Replace with your actual resume file path
-    resume_path = "your_resume.pdf"  # or "your_resume.docx"
-    result = parser.parse_resume(resume_path)
-    print(json.dumps(result, indent=2))
+    # Get file path from user
+    file_path = input("Enter the path to your resume (PDF or DOCX): ").strip()
+    
+    if not file_path:
+        print("Error: No file path provided")
+        return
+        
+    if not os.path.exists(file_path.strip('"').strip("'")):
+        print(f"Error: File not found at path: {file_path}")
+        return
+    
+    # Parse the resume without target job first to display skills
+    initial_results = parser.parse_resume(file_path)
+    
+    if initial_results and "categorized_skills" in initial_results:
+        print("\nExtracted Skills:")
+        print("----------------")
+        
+        for category, skills in initial_results["categorized_skills"].items():
+            print(f"\n{category}:")
+            for skill in skills:
+                print(f"• {skill}")
+    else:
+        print("No skills were extracted from the resume. Please check the file and try again.")
+        return
+    
+    # Now ask for target job role
+    print("\nWould you like to analyze the resume for a specific job role?")
+    print("Enter 'y' for yes, any other key for no: ")
+    analyze_job = input().lower() == 'y'
+    
+    if not analyze_job:
+        return
+        
+    # Get target job if user wants analysis
+    target_job = None
+    print("\nAvailable job roles:")
+    job_roles = list(parser.job_roles_skills.keys())
+    for i, job in enumerate(job_roles, 1):
+        print(f"{i}. {job}")
+    
+    while True:
+        try:
+            job_index = int(input("\nEnter the number of the desired job role: ")) - 1
+            if 0 <= job_index < len(job_roles):
+                target_job = job_roles[job_index]
+                break
+            else:
+                print("Invalid selection. Please enter a number from the list.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+    
+    # Parse the resume with target job for matching analysis
+    results = parser.parse_resume(file_path, target_job)
+    
+    if results and "skill_match" in results:
+        print(f"\nSkill Match Analysis for {results['target_job']}:")
+        print(f"Match Percentage: {results['skill_match']['match_percentage']:.1f}%")
+        
+        print("\nMatched Skills:")
+        for skill in results["skill_match"]["matched_skills"]:
+            print(f"• {skill}")
+        
+        print("\nMissing Skills:")
+        for skill in results["skill_match"]["missing_skills"]:
+            print(f"• {skill}")
+    else:
+        print("Failed to analyze skills for the selected job role.")
+
+if __name__ == "__main__":
+    main()
