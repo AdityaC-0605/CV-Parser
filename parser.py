@@ -483,6 +483,48 @@ class ResumeParser:
             'missing_skills': missing_skills
         }
 
+    def check_missing_skills(self, extracted_skills, role_skills):
+        """
+        Check for missing skills for a specific role
+        Args:
+            extracted_skills (list): List of extracted skills
+            role_skills (list): List of required skills for the role
+        Returns:
+            list: List of missing skills
+        """
+        # Convert all skills to lowercase for case-insensitive comparison
+        extracted_lower = [skill.lower() for skill in extracted_skills]
+        missing_skills = []
+        
+        for skill in role_skills:
+            skill_lower = skill.lower()
+            if not any(skill_lower in extracted.lower() for extracted in extracted_lower):
+                missing_skills.append(skill)
+        
+        # Only print missing skills once if they exist
+        if missing_skills:
+            print("\nMissing Skills:")
+            for skill in missing_skills:
+                print(f"• {skill}")
+        
+        return missing_skills
+
+    def analyze_resume(self, extracted_skills, target_role=None):
+        """
+        Analyze the resume against job roles
+        Args:
+            extracted_skills (list): List of extracted skills
+            target_role (str, optional): Specific role to analyze against
+        """
+        if target_role and target_role in self.job_roles_skills:
+            # If target role specified, only check against that role
+            role_skills = self.job_roles_skills[target_role]
+            return self.check_missing_skills(extracted_skills, role_skills)
+        else:
+            # Only check against MLOps Engineer role (or whatever specific role you're targeting)
+            role_skills = self.job_roles_skills["MLOps Engineer"]
+            return self.check_missing_skills(extracted_skills, role_skills)
+
     def parse_resume(self, file_path, target_job=None):
         """Parse the resume and extract relevant information"""
         # Extract text from the resume
