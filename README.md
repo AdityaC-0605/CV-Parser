@@ -55,7 +55,11 @@ An AI-powered resume parsing tool that extracts key information from resumes for
 ```
 nextleap-resume-parser/
 ├── app.py                  # Flask web application
+<<<<<<< HEAD
 ├──parser.py                # Core resume parsing functionality
+=======
+├── parser.py               # Core resume parsing functionality
+>>>>>>> 486fe128a3cdcadd735c42c49187ef35ef5d4ad7
 ├── requirements.txt        # Python dependencies
 ├── templates/
 │   └── index.html          # Web interface
